@@ -1,5 +1,5 @@
-import time
-import network 
+import utime
+import ntptime
 from machine import Pin
 
 DELAY = 0.0055  # Delay between writing to each digit of HEX
@@ -20,7 +20,9 @@ dig4 = Pin(17, Pin.OUT)  # Digit 4
 
 
 def main():
-  #do_connect()
+  do_connect()
+  ntptime.settime()
+  print(utime.localtime())
   while True:
     four(1)
     two(2)
@@ -69,7 +71,7 @@ def zero(digit):
   segF.value(1)
   segG.value(0)
   dp.value(0)
-  time.sleep(DELAY)
+  utime.sleep(DELAY)
   
 def one(digit):
   allLow()
@@ -82,7 +84,7 @@ def one(digit):
   segF.value(0)
   segG.value(0)
   dp.value(0)
-  time.sleep(DELAY)
+  utime.sleep(DELAY)
 
 def two(digit):
   allLow()
@@ -95,7 +97,7 @@ def two(digit):
   segF.value(0)
   segG.value(1)
   dp.value(0)
-  time.sleep(DELAY)
+  utime.sleep(DELAY)
 
 def three(digit):
   allLow()
@@ -108,7 +110,7 @@ def three(digit):
   segF.value(0)
   segG.value(1)
   dp.value(0)
-  time.sleep(DELAY)
+  utime.sleep(DELAY)
   
 def four(digit):
   allLow()
@@ -121,7 +123,7 @@ def four(digit):
   segF.value(1)
   segG.value(1)
   dp.value(0)
-  time.sleep(DELAY)
+  utime.sleep(DELAY)
   
   
 def five(digit):
@@ -135,7 +137,7 @@ def five(digit):
   segF.value(1)
   segG.value(1)
   dp.value(0)
-  time.sleep(DELAY)
+  utime.sleep(DELAY)
   
 def six(digit):
   allLow()
@@ -148,7 +150,7 @@ def six(digit):
   segF.value(1)
   segG.value(1)
   dp.value(0)
-  time.sleep(DELAY)
+  utime.sleep(DELAY)
   
 def seven(digit):
   allLow()
@@ -161,7 +163,7 @@ def seven(digit):
   segF.value(0)
   segG.value(0)
   dp.value(0)
-  time.sleep(DELAY)
+  utime.sleep(DELAY)
   
 def eight(digit):
   allLow()
@@ -174,7 +176,7 @@ def eight(digit):
   segF.value(1)
   segG.value(1)
   dp.value(0)
-  time.sleep(DELAY)
+  utime.sleep(DELAY)
   
 def nine(digit):
   allLow()
@@ -187,7 +189,7 @@ def nine(digit):
   segF.value(1)
   segG.value(1)
   dp.value(0)
-  time.sleep(DELAY)
+  utime.sleep(DELAY)
   
 def selectDigit(digit):
   if digit == 1:
