@@ -4,8 +4,9 @@
 
 const unsigned long DELAY = 5; // Must delay in between writing to HEX Display to not cause overlap
 
-// These pin assignments are according to this diagram:
+// These pin assignments are according to these diagrams:
 //    https://github.com/thehookup/ESP32_Ceiling_Light/blob/master/GPIO_Limitations_ESP32_NodeMCU.jpg
+//    http://thomas.bibby.ie/using-the-kyx-5461as-4-digit-7-segment-led-display-with-arduino/
 const int segA = 16; // A
 const int segB = 27; // B
 const int segC = 26; // C
