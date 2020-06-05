@@ -10,8 +10,6 @@ const int serPin   = 14; // Serial Input Data
 const int srclkPin = 27; // Shift Register Clock
 const int latchPin = 26; // Register Latch
 
-byte data; // Data to be sent through the shift register to the HEx Display to control the segments
-
 // These pin assignments are according to these diagrams:
 //    https://github.com/thehookup/ESP32_Ceiling_Light/blob/master/GPIO_Limitations_ESP32_NodeMCU.jpg
 //    http://thomas.bibby.ie/using-the-kyx-5461as-4-digit-7-segment-led-display-with-arduino/
@@ -35,12 +33,26 @@ const uint8_t seven   = 0xE0; // 1110 0000
 const uint8_t eight   = 0xFE; // 1111 1110
 const uint8_t nine    = 0xF6; // 1111 0110
 
+// WiFi Login
 const char *ssid     = "ALLOE6CC5";
 const char *password = "magicalbird445";
 
-unsigned long currentMillis = 0; // Keeps track of current milliseconds passed since program start 
-time_t now = time(nullptr);      // Current real time
- 
+// Realtime variables
+unsigned long realtimeMillis = 0; // Keeps track of current milliseconds passed since program start for checking realtime purposes
+time_t now = time(nullptr);       // Current real time as time_t
+int realTime = 0;                 // Current real time as int i.e 1230
+
+// Alarm variables
+const int alarmSetPin = 34; // When this button is pressed, go into Alarm Set Mode
+const int alarmDown = 39;   // When this button is pressed, add to the current alarmTime value
+const int alarmUp = 36;     // When this button is pressed, subtract from the current alarmTime value
+bool alarmTrigger = false;  // Gets set to true if button to configure alarm is pressed
+bool alarmGoOff = false;    // Check if the alarm has already gone off
+int alarmTime = 0;          // Time for alarm to go off
+
+// Function prototypes
+void IRAM_ATTR ISR();
+
 void setup(){
   // Start serial port for ESP32
   Serial.begin(115200);
@@ -55,13 +67,6 @@ void setup(){
   pinMode(dig2, OUTPUT);
   pinMode(dig3, OUTPUT);
   pinMode(dig4, OUTPUT);
-
-  digitalWrite(dig1, 0);
-
-  pinMode(25, OUTPUT);
-
-  digitalWrite(25, 1);
-
   
   // Setup wifi
   WiFi.mode(WIFI_STA);
@@ -93,39 +98,158 @@ void setup(){
   delay(1000);          // Wait for time to be retrieved from internet
   now = time(nullptr);  // Update real time variable
   Serial.println(ctime(&now));
-  // Serial.println(ctime(&now)[11]);
-  // Serial.println((char)ctime(&now)[11]);
-  // Serial.println((int)ctime(&now)[11]);
 
-  currentMillis = millis();
+  // Update current time since program started
+  realtimeMillis = millis();
+
+  // Alarm setup
+  pinMode(alarmSetPin, INPUT_PULLUP);     // When button is not pressed, pin will be HIGH. When pressed, button connects pin to GND, setting pin to LOW 
+  attachInterrupt(alarmSetPin, ISR, LOW); // Create interrupt for setting Alarm
+  pinMode(alarmUp, INPUT_PULLUP);
+  pinMode(alarmDown, INPUT_PULLUP);
+
+  delay(3000);
   
 }
  
 void loop(){
 
-  if(millis() - currentMillis > 5000){ // Get current time every 5 seconds as to not hog cpu
-    now = time(nullptr);
-    currentMillis = millis();
+  if(millis() - realtimeMillis > 3000){ // Get current time every 5 seconds as to not hog cpu
+    setRealTime(time(nullptr));
+    realtimeMillis = millis();
+    if(realTime == alarmTime && alarmGoOff == false){
+      alarmGoOff = true;
+      setOffAlarm();
+    }
   }
 
-  // Must subtract 48 due to ascii conversion from char to int i.e. (int)'0' = 48
-  print_number(convert_hour((int)ctime(&now)[11] - 48, (int)ctime(&now)[12] - 48, 0), 1);
-  print_number(convert_hour((int)ctime(&now)[11] - 48, (int)ctime(&now)[12] - 48, 1), 2);
-  print_number((int)ctime(&now)[14] - 48, 3);
-  print_number((int)ctime(&now)[15] - 48, 4);
+  if(alarmTrigger == true){ 
+    setAlarm();
+  }
+ 
+  print_full(realTime);
 
 }
 
+void setOffAlarm(){
+  // Zing Zing
+}
+
+void setAlarm(){
+  detachInterrupt(alarmSetPin); // Turn off interrupts while in this mode
+  int currentDigit = 1;
+  uint8_t firstDigit = 0;
+  uint8_t secondDigit = 0;
+  uint8_t thirdDigit = 0;
+  uint8_t fourthDigit = 0;
+  
+  while(true){
+    alarmTime = firstDigit*1000 + secondDigit*100 + thirdDigit*10 + fourthDigit;
+    print_full(alarmTime);
+
+    if(digitalRead(alarmSetPin) == LOW){
+      currentDigit++;
+    }
+
+    if(digitalRead(alarmUp) == LOW){
+      if(currentDigit == 1){
+        zero_nine_check(firstDigit, 1);
+      }else if(currentDigit == 2){
+        zero_nine_check(secondDigit, 1);
+      }else if(currentDigit == 3){
+        zero_nine_check(thirdDigit, 1);
+      }else if(currentDigit == 4){
+        zero_nine_check(fourthDigit, 1);
+      }
+    }
+
+    if(digitalRead(alarmDown) == LOW){
+      if(currentDigit == 1){
+        zero_nine_check(firstDigit, 0);
+      }else if(currentDigit == 2){
+        zero_nine_check(secondDigit, 0);
+      }else if(currentDigit == 3){
+        zero_nine_check(thirdDigit, 0);
+      }else if(currentDigit == 4){
+        zero_nine_check(fourthDigit, 0);
+      }
+    }
+
+    if(currentDigit > 4){
+      break;
+    }
+
+  }
+
+  attachInterrupt(alarmSetPin, ISR, LOW); // Turn interrupts back on
+}
+
+uint8_t zero_nine_check(uint8_t number, bool direction){
+  /*
+   * Keeps the number between 0-9
+   * Direction 0 = Down, Direction 1 = Up
+   */
+  if(direction == 0){
+    if(number == 0){
+      number = 9;
+    }else{
+      number -= 1;
+    }
+  }else if(direction == 1){
+    if(number == 9){
+      number = 0;
+    }else{
+      number += 1;
+    }
+  }
+  
+  return number;
+}
+
+void IRAM_ATTR ISR() {
+  /*
+   * Interrupt for setting the alarmTrigger to true when the button is pressed
+   */
+    alarmTrigger = true;
+}
+
+void setRealTime(time_t time){
+  // Must subtract 48 due to ascii conversion from char to int i.e. (int)'0' = 48
+  realTime = convert_hour((int)ctime(&now)[11] - 48, (int)ctime(&now)[12] - 48, 0);
+  realTime = realTime * 10 + convert_hour((int)ctime(&now)[11] - 48, (int)ctime(&now)[12] - 48, 1);
+  realTime = realTime * 10 + (int)ctime(&now)[14] - 48;
+  realTime = realTime * 10 + (int)ctime(&now)[15] - 48;
+}
+
+// The division isolates the needed individual digit
+int first_digit(int number){
+  return number/1000;
+}
+
+int second_digit(int number){
+  return (number/100) - (number/1000) * 10;
+}
+
+int third_digit(int number){
+  return (number/10) - (number/100) * 10;
+}
+
+int fourth_digit(int number){
+  return (number) - (number/10) * 10;
+}
 
 int convert_hour(int first, int second, bool digit){
   /*
    * Converts the first and second digits of the hour into normal time non-military time
    */
 
-  if(first == 1 && second > 2){ // Hour: 12 <= x <= 19
+  if(first == 0 && second == 0){ // Hour: Midnight = 00
+    first = 1;
+    second = 2;
+  }else if(first == 1 && second > 2){ // Hour: 13 <= x <= 19
     first -= 1;
     second -= 2;
-  } else if(first == 2){ // Hour: 20 <= x <= 23
+  }else if(first == 2){ // Hour: 20 <= x <= 23
     int number = (first * 10) + second;
     number -= 12;
     first = number / 10;
@@ -139,9 +263,19 @@ int convert_hour(int first, int second, bool digit){
   
 }
 
+void print_full(int number){
+  /*
+   * Prints the full number to the HEX display
+   */
+  print_number(first_digit(number),  1);
+  print_number(second_digit(number), 2);
+  print_number(third_digit(number),  3);
+  print_number(fourth_digit(number), 4);
+}
+
 void print_number(int number, int digit){
   /*
-   * Prints the desired number 0-9 on the desired digit 1-4
+   * Decide which byte to write to the display based on the input number
    */
 
   if(number == 0){
@@ -168,17 +302,26 @@ void print_number(int number, int digit){
 }
 
 void write_hex(uint8_t number, int digit){
+  /*
+   * Writes the HEX-byte representation of the number to the Shift Register to be displayed on the HEX Display
+   */
+
   number = number | check_decimal(digit); // Make the decimal point bit one if digit = 2 
 
-  select_digit(digit);
-  all_low();
-  digitalWrite(latchPin, 0);
+  select_digit(digit); // Turn off all other digits besides the one being written to
+  all_low(); // Must reset all segments for the current digit or else the previous digit's segments will appear
+  digitalWrite(latchPin, 0); // Lower the latch signal in order to output bits on the shift register
   shiftOut(serPin, srclkPin, LSBFIRST, number);  // Makes the bits appear in order on the Shift Register Output i.e A = MSB, H = LSB
   digitalWrite(latchPin, 1);
-  delay(DELAY);
+  delay(DELAY);  // Need delay here or numbers on display will be illegible
 }
 
 void select_digit(int digit){
+  /*
+   * Deselect all digits then select the one needed to be written to
+   * 0 is on, 1 is off
+   */
+
   digitalWrite(dig1, 1);
   digitalWrite(dig2, 1);
   digitalWrite(dig3, 1);
